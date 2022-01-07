@@ -1,0 +1,228 @@
+---
+title: "Credit_risk_analysis_0"
+author: "Gurpreet Singh"
+date: "02/11/2021"
+output: html_document
+---
+
+Assume you've been handed a data set from a huge bank and you've been given the duty of calculating a credit risk score for each customer. You've just been informed that you'll be working on this project, and you'll need to create a prototype that shows how the problem can be solved.
+
+## Approach
+Credit risk scoring is a time-consuming procedure that requires extensive data analysis, model evaluations, internal controls, and sign-offs. As a first step, you may develop a straw man version of your strategy using the procedures mentioned below and the accompanying code.
+
+Obtaining a dataset and doing high-level analysis on it will be the initial stage in constructing your prototype.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setting up the data and performing high level analysis#
+########################################################
+#downloading the data
+#https://github.com/gurpreetsingh14/Credit_Risk_Analysis/blob/master/credit.csv
+
+#loading data
+credit <- read.csv("credit.csv")
+
+#identifying the structure of variables
+str(credit)
+
+#getting summary of the variables
+summary(credit) 
+
+#getting the column names
+colnames(credit) 
+
+#tabulating dependent variables
+table(credit$default)
+
+#No missing values in the data
+#Note : If there were any missing values, I would have used R's "mice" package to infer them.
+
+#Normalizing or standardizing data
+#Note : I would have used standardization or min max normalization to scale the variables, but I didn't do that here!
+
+#Removing correlated features
+#Note : Based on an 80 percent correlation rule in the correlation matrix, I would have deleted associated features.
+
+#spliting data into test and train
+library(caTools)
+split <- sample.split(credit$default, SplitRatio = 0.70)
+train <- subset(cbind(credit,split), cbind(credit,split)$split == TRUE)
+test <- subset(cbind(credit,split), cbind(credit,split)$split == FALSE)
+
+#checking proportions across train and test
+prop.table(table(train$default))
+prop.table(table(test$default))
+```
+
+The second step in your prototype will be to train an explainable model, such as a logistic regression model so that you can identify and explain the driving variables.
+
+```{r logistic_regression, include=FALSE}
+#training a model using logistic regression#
+############################################
+
+#training a model
+creditLogReg <- glm(factor(train$default) ~ ., data = train, family = "binomial" ) #removing split feature and dependent variable
+summary(creditLogReg) #summary of the model output
+#Note: In theory I should rerun the model removing the non-significant features but since I want to demonstrate multiple model usage I would let it slide
+
+#predicing on test data
+predCreditLogReg <- predict(creditLogReg, newdata = test, type = "response")
+
+#obtaining a confusion matrix
+table(test$default, predCreditLogReg > 0.5)
+
+#Note: we want our model to be optimally sensitive hence we use 0.5 as the threshold, reducing the threshold will make the model more sensitive
+
+#computing the accuracy of the model
+accuracyCreditLogReg <- ((as.matrix(table(test$default, predCreditLogReg > 0.5))[1,1]) + (as.matrix(table(test$default, predCreditLogReg > 0.5))[2,2]))/nrow(test)
+
+#computing the baseline model for comparison
+baseLineAccuracy <- max(table(test$default))/nrow(test)
+
+print(accuracyCreditLogReg) 
+print(baseLineAccuracy)
+#Note : Our simple logistic regression model beats the baseline model
+
+#assesing the robustness of model
+library(ROCR)
+rocrPredCreditLogReg <- prediction(predCreditLogReg,test$default) 
+areaUnderCurve <- as.numeric(performance(rocrPredCreditLogReg, "auc")@y.values) #out of sample auc
+print(areaUnderCurve) 
+#Note : Closer to 1 is better, 0.821 here is not bad for a first model
+```
+The third step in your prototype will be to train an more complicated model to assess if you can improve over your explainable model through additional tuning as well.
+
+```{r decision_trees, include=FALSE}
+#training a model using decision trees#
+#######################################
+library("rpart")
+library("rpart.plot")
+
+#training a model
+creditDecTree <- rpart(train$default ~ ., data = train[,c(-17,-18)], method = "class", minbucket = 1) #min bucket is minimum number of observations in a terminal nore
+summary(creditDecTree) #summary of the model output
+
+#plotting a decision tree to see splits
+prp(creditDecTree)
+
+#predicting on test data
+predictCreditDecTree <- predict(creditDecTree, newdata = test[,c(-17,-18)], type = "class") #getting classes rather than probability
+
+#computing the accuracy of the model
+table(test$default,predictCreditDecTree) #since we dont have a probability here so we dont set a threshold
+
+accuracyCreditDecTree <- ((as.matrix(table(test$default, predictCreditDecTree))[1,1]) + (as.matrix(table(test$default, predictCreditDecTree))[2,2]))/nrow(test)
+
+#computing the baseline model for comparison
+baseLineAccuracy <- max(table(test$default))/nrow(test)
+
+print(accuracyCreditDecTree)
+print(baseLineAccuracy)
+#Note: Our decision tree model beats the basline model in terms of accuracy
+
+#assesing the robustness of model
+library(ROCR)
+rocrPredictCreditDecTree <- prediction((predict(creditDecTree, newdata = test[,c(-17,-18)])[,2]), test$default) #getting probability and then picking predicted class
+areaUnderCurve <- as.numeric(performance(rocrPredictCreditDecTree, "auc")@y.values) #out of sample auc
+print(areaUnderCurve) 
+
+#tuning a model using decision trees#
+#####################################
+library(caret)
+
+#tuning for complexity parameter, this penalizes model complexity and avoids overfitting
+tuneGridDecTree <- expand.grid(.cp=seq(0.01,0.5,0.01))
+
+#creating a list of parameters to be passed onto the model
+fitControlDecTree <- trainControl(method = "cv", number = 10)
+
+
+tunedCreditDecTree <- train(default ~., data = train,
+                            method = "rpart",
+                            trControl = fitControlDecTree,
+                            tuneGrid = tuneGridDecTree)
+
+tunedPredictCreditDecTree <- predict(tunedCreditDecTree, newdata=test, type="raw")
+
+#copmuting the accuracy of the model
+table(test$default,tunedPredictCreditDecTree) #since we dont have a probability here so we dont set a threshold
+
+accuracyTunedCreditDecTree <- ((as.matrix(table(test$default, tunedPredictCreditDecTree))[1,1]) + (as.matrix(table(test$default, tunedPredictCreditDecTree))[2,2]))/nrow(test)
+```
+
+The final step in your prototype will be to train using a highly robust and more black box model to assess if you can improve over your existing approaches, to see if it is worthwhile to pursue this path.
+
+```{r random_forest, include=FALSE}
+#training a model using random forest#
+#######################################
+library(randomForest)
+
+#training a model
+creditRandFor <- randomForest(as.factor(train$default) ~., data = train,nodesize =25, ntree = 200)
+summary(creditRandFor) #summary of the model output
+
+#identifying the most important variables based on mean gini decrease
+varImpPlot(creditRandFor)
+#Note : Show how each split result in low impurities or increased homogeneity
+
+#predicting on test data
+predictCreditRandFor <- predict(creditRandFor, newdata = test)
+
+#computing the accuracy of the model
+table(test$default,predictCreditRandFor) #since we dont have a probability here so we dont set a threshold
+
+accuracyCreditRandFor <- ((as.matrix(table(test$default, predictCreditRandFor))[1,1]) + (as.matrix(table(test$default, predictCreditRandFor))[2,2]))/nrow(test)
+
+#computing the baseline model for comparison
+baseLineAccuracy <- max(table(test$default))/nrow(test)
+
+print(accuracyCreditRandFor)
+print(baseLineAccuracy)
+#Note: Our random forest model beats the basline model in terms of accuracy
+
+#assesing the robustness of model
+library(ROCR)
+rocrPredictCreditRandFor <- prediction((predict(creditRandFor, newdata = test, type = "prob")[,2]), test$default) #getting probability and then picking predicted class
+areaUnderCurve <- as.numeric(performance(rocrPredictCreditRandFor, "auc")@y.values) #out of sample auc
+print(areaUnderCurve)
+#Note : Very high area under the curve but slighltly less than logistic regression
+#Note : Very high accuracy as good as logistic regression
+
+```
+
+# Tuning the model
+
+```{r tuning, include=FALSE}
+#tuning a model using random forest#
+#######################################
+#Note : We can tune it using tuneRF package but repeated cross validation using caret produces much better results
+library(caret)
+
+#tuning for mtry, this the number of variables randomly sampled for splits
+tuneGridRandFor <- expand.grid(.mtry=c(1:sqrt(ncol(train))))
+
+#creating a list of parameters to be passed onto the model
+fitControlRandFor <- trainControl(method = "repeatedcv", 
+                                  number = 5, repeats = 3,
+                                  #fivefold cross validation repeated 10 times
+                                  classProbs = TRUE,
+                                  summaryFunction = twoClassSummary) 
+
+tunedCreditRandFor <- train(default ~., data = train,
+                            method = "rf",
+                            trControl = fitControlRandFor,
+                            verbose = TRUE,
+                            metric = "ROC",
+                            tuneGrid = data.frame(tuneGridRandFor),
+                            importance = TRUE)
+
+tunedPredictCreditRandFor <- predict(tunedCreditRandFor, newdata = test)
+
+#computing the accuracy of the model
+table(test$default,tunedPredictCreditRandFor) #since we dont have a probability here so we dont set a threshold
+
+accuracyTunedCreditRandFor <- ((as.matrix(table(test$default, tunedPredictCreditRandFor))[1,1]) + (as.matrix(table(test$default, tunedPredictCreditRandFor))[2,2]))/nrow(test)
+```
+
+# Conclusion
+Depending on the problem you are trying to solve, you could pick a model that serves your case, simplest is always the better unless the complicated one is significantly better. Also note that while there may be a temptation to jump into models, most improvement in model performance come from data wrangling and creating new features for your models
