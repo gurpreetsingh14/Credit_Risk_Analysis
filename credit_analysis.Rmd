@@ -52,6 +52,8 @@ test <- subset(cbind(credit,split), cbind(credit,split)$split == FALSE)
 #checking proportions across train and test
 prop.table(table(train$default))
 prop.table(table(test$default))
+cat("The proportion of Yes-No in train set is:",prop.table(table(train$default)))
+cat("The proportion of Yes-No value in test set is:",prop.table(table(train$default)))
 ```
 
 The second step in your prototype will be to train an explainable model, such as a logistic regression model so that you can identify and explain the driving variables.
@@ -63,6 +65,7 @@ The second step in your prototype will be to train an explainable model, such as
 #training a model
 creditLogReg <- glm(factor(train$default) ~ ., data = train, family = "binomial" ) #removing split feature and dependent variable
 summary(creditLogReg) #summary of the model output
+cat("Summary of Logistic Model:",summary(creditLogReg))
 #Note: In theory I should rerun the model removing the non-significant features but since I want to demonstrate multiple model usage I would let it slide
 
 #predicing on test data
@@ -79,15 +82,15 @@ accuracyCreditLogReg <- ((as.matrix(table(test$default, predCreditLogReg > 0.5))
 #computing the baseline model for comparison
 baseLineAccuracy <- max(table(test$default))/nrow(test)
 
-print(accuracyCreditLogReg) 
-print(baseLineAccuracy)
+cat("Accuracy of Logistic Regression Model:",accuracyCreditLogReg) 
+cat("Accuracy of Baseline Model:",baseLineAccuracy)
 #Note : Our simple logistic regression model beats the baseline model
 
-#assesing the robustness of model
+#assessing the robustness of model
 library(ROCR)
 rocrPredCreditLogReg <- prediction(predCreditLogReg,test$default) 
 areaUnderCurve <- as.numeric(performance(rocrPredCreditLogReg, "auc")@y.values) #out of sample auc
-print(areaUnderCurve) 
+areaUnderCurve 
 #Note : Closer to 1 is better, 0.821 here is not bad for a first model
 ```
 The third step in your prototype will be to train an more complicated model to assess if you can improve over your explainable model through additional tuning as well.
