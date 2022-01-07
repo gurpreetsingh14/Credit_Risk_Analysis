@@ -219,10 +219,10 @@ tunedCreditRandFor <- train(default ~., data = train,
 tunedPredictCreditRandFor <- predict(tunedCreditRandFor, newdata = test)
 
 #computing the accuracy of the model
-table(test$default,tunedPredictCreditRandFor) #since we dont have a probability here so we dont set a threshold
+table(test$default,tunedPredictCreditRandFor) #We don't establish a threshold because we don't have a probability.
 
 accuracyTunedCreditRandFor <- ((as.matrix(table(test$default, tunedPredictCreditRandFor))[1,1]) + (as.matrix(table(test$default, tunedPredictCreditRandFor))[2,2]))/nrow(test)
 ```
 
 # Conclusion
-Depending on the problem you are trying to solve, you could pick a model that serves your case, simplest is always the better unless the complicated one is significantly better. Also note that while there may be a temptation to jump into models, most improvement in model performance come from data wrangling and creating new features for your models
+You can choose a model that suits your needs based on the problem you're seeking to address; the simplest is always better until the complicated one is much better. While it may be tempting to leap right into models, the majority of improvements in model performance come from data wrangling and adding new features to your models.
