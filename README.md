@@ -12,4 +12,4 @@ The purpose of this project is learn,compare and evaluate different supervised l
 ## Tuning
 The random forest model is tuned using repeated cross-validation provided by "Caret" package
 
-I have added a RMarkdown file. I hope it will help is better explaining the whole code-base.
+I have added a RMarkdown file. I hope it will help in better explaining the whole code-base.
